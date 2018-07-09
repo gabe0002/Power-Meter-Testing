@@ -28,9 +28,6 @@ namespace Power_Meter_Testing
         //Hardcoded, didn't want to add more options to change the path
         public static string refPath = @"\\thorlabs.local\NWT\OpticsBU\Users\Gabe Marth\2 Channel Project\Fresh Start - C#\Power Meter Testing";
 
-        //Variables from measurement that are needed
-        public static int BaseDataMax;
-
         public static bool CreateExcelDoc()
         {
             //Creates the test Excel doc for data insertion
@@ -66,8 +63,8 @@ namespace Power_Meter_Testing
             //Populates the created test file with the recorded data
             double AvgSum = 0;
 
-            double[,] BaselineValues = new double[Measurement.BaseDataMax + 1, 5];
-            for (int i = 1; i <= Measurement.BaseDataMax; i++)
+            double[,] BaselineValues = new double[Measurement.DataPointCount + 1, 5];
+            for (int i = 1; i <= Measurement.DataPointCount; i++)
             {
                 BaselineValues[i - 1, 0] = Measurement.BaseArray[i, 0];
                 BaselineValues[i - 1, 1] = Measurement.BaseArray[i, 1];
@@ -76,8 +73,8 @@ namespace Power_Meter_Testing
                 BaselineValues[i - 1, 4] = BaselineValues[i - 1, 3] / BaselineValues[i - 1, 2];
             }
 
-            double[,] SampleValues = new double[Measurement.SampleDataMax, 6];
-            for (int i = 1; i <= Measurement.SampleDataMax; i++)
+            double[,] SampleValues = new double[Measurement.DataPointCount, 6];
+            for (int i = 1; i <= Measurement.DataPointCount; i++)
             {
                 SampleValues[i - 1, 0] = Measurement.SampleArray[i, 0];
                 SampleValues[i - 1, 1] = Measurement.SampleArray[i, 1];
@@ -89,42 +86,19 @@ namespace Power_Meter_Testing
             }
 
             var BaseStartCell = Worksheet.Cells[5, 1];
-            var BaseEndCell = Worksheet.Cells[Measurement.BaseDataMax + 4, 5];
+            var BaseEndCell = Worksheet.Cells[Measurement.DataPointCount + 4, 5];
             var BaseWriteRange = Worksheet.Range[BaseStartCell, BaseEndCell];
             BaseWriteRange.Value = BaselineValues;
 
             var SampleStartCell = Worksheet.Cells[5, 7];
-            var SampleEndCell = Worksheet.Cells[Measurement.SampleDataMax + 4, 12];
+            var SampleEndCell = Worksheet.Cells[Measurement.DataPointCount + 4, 12];
             var SampleWriteRange = Worksheet.Range[SampleStartCell, SampleEndCell];
             SampleWriteRange.Value = SampleValues;
 
-
-            ////Baseline data insertion
-            //for (int i = 1; i <= Measurement.BaseDataMax; i++)
-            //{
-            //    Worksheet.Cells[i + 4, 1] = Convert.ToString(Measurement.BaseArray[i, 0]);
-            //    Worksheet.Cells[i + 4, 2] = Convert.ToString(Measurement.BaseArray[i, 1]);
-            //    Worksheet.Cells[i + 4, 3] = Convert.ToString(Measurement.BaseArray[i, 2]);
-            //    Worksheet.Cells[i + 4, 4] = Convert.ToString(Measurement.BaseArray[i, 3]);
-            //    Worksheet.Cells[i + 4, 5] = Convert.ToString(Convert.ToDouble(Measurement.BaseArray[i, 3] / Measurement.BaseArray[i, 2]));
-            //}
-
-            //Sample data insertion
-            //for (int i = 1; i <= Measurement.SampleDataMax; i++)
-            //{
-            //    Worksheet.Cells[i + 4, 7] = Convert.ToString(Measurement.SampleArray[i, 0]);
-            //    Worksheet.Cells[i + 4, 8] = Convert.ToString(Measurement.SampleArray[i, 1]);
-            //    Worksheet.Cells[i + 4, 9] = Convert.ToString(Measurement.SampleArray[i, 2]);
-            //    Worksheet.Cells[i + 4, 10] = Convert.ToString(Measurement.SampleArray[i, 3]);
-            //    Worksheet.Cells[i + 4, 11] = Convert.ToString(Convert.ToDouble(Measurement.SampleArray[i, 3] / Measurement.SampleArray[i, 2]));
-            //    Worksheet.Cells[i + 4, 13] = Convert.ToString(Convert.ToDouble(-Math.Log10((Measurement.SampleArray[i, 3] / Measurement.SampleArray[i, 2]) / (Measurement.BaseArray[i, 3] / Measurement.BaseArray[i, 2]))));
-            //    AvgSum += -Math.Log10((Measurement.SampleArray[i, 3] / Measurement.SampleArray[i, 2]) / (Measurement.BaseArray[i, 3] / Measurement.BaseArray[i, 2]));
-            //}
-
             //Calculates the OD result, which is then displayed on the program form
             //Also inserts tolerance specifications to the worksheet
-            Worksheet.Cells[1, 5] = Convert.ToString(AvgSum / Measurement.SampleDataMax);
-            Measurement.ResultOD = AvgSum / Measurement.SampleDataMax;
+            Worksheet.Cells[1, 5] = Convert.ToString(AvgSum / Measurement.DataPointCount);
+            Measurement.ResultOD = AvgSum / Measurement.DataPointCount;
             Worksheet.Cells[2, 5] = Measurement.TargetOD;
             Worksheet.Cells[1, 8] = Measurement.PosTol;
             Worksheet.Cells[2, 8] = Measurement.NegTol;
@@ -149,6 +123,7 @@ namespace Power_Meter_Testing
             Worksheet.Cells[1, 1].Font.Bold = true;
             Worksheet.Range["B1", "B1"].NumberFormat = "mm/dd/yyyy";
             Worksheet.Range["B2", "B2"].NumberFormat = "####";
+            Worksheet.Range["H1", "H2"].NumberFormat = "General";
             Worksheet.Cells[1, 2] = FileOperations.CurrentDateString;
             Worksheet.Cells[2, 1] = "Test #:";
             Worksheet.Cells[2, 1].Font.Bold = true;
@@ -165,8 +140,10 @@ namespace Power_Meter_Testing
             Worksheet.Cells[2, 7].WrapText = true;
             Worksheet.Cells[1, 10] = "Test Pass:";
             Worksheet.Cells[1, 10].Font.Bold = true;
-            Worksheet.Range["A1", "J1"].VerticalAlignment = Excel.XlVAlign.xlVAlignCenter;
-            Worksheet.Range["A2", "J2"].VerticalAlignment = Excel.XlVAlign.xlVAlignCenter;
+            Worksheet.Range["A1", "K1"].VerticalAlignment = Excel.XlVAlign.xlVAlignCenter;
+            Worksheet.Range["A2", "K2"].VerticalAlignment = Excel.XlVAlign.xlVAlignCenter;
+            Worksheet.Range["A1", "K1"].HorizontalAlignment = Excel.XlHAlign.xlHAlignCenter;
+            Worksheet.Range["A2", "K2"].HorizontalAlignment = Excel.XlHAlign.xlHAlignCenter;
 
             //Set baseline formatting
             Worksheet.Cells[4, 1] = "Baseline Test Count:";
@@ -243,11 +220,11 @@ namespace Power_Meter_Testing
             //logSheet.Cells[logLast, 11] = Measurement.TargetOD;
             //logSheet.Cells[logLast, 12] = Measurement.PosTol;
             //logSheet.Cells[logLast, 13] = Measurement.NegTol;
-            //logSheet.Cells[logLast, 14] = Measurement.BaseCountMax;
+            //logSheet.Cells[logLast, 14] = Measurement.DataPointCount;
             //logSheet.Cells[logLast, 15] = frmTester.BaseResults[0];
             //logSheet.Cells[logLast, 16] = frmTester.BaseResults[1];
             //logSheet.Cells[logLast, 17] = frmTester.BaseResults[2];
-            //logSheet.Cells[logLast, 18] = Measurement.SampleCountMax;
+            //logSheet.Cells[logLast, 18] = Measurement.DataPointCount;
             //logSheet.Cells[logLast, 19] = frmTester.SampleResults[0];
             //logSheet.Cells[logLast, 20] = frmTester.SampleResults[1];
             //logSheet.Cells[logLast, 21] = frmTester.SampleResults[2];

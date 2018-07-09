@@ -4,22 +4,21 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
+using System.Windows.Forms;
+
 
 namespace Power_Meter_Testing
 {
     class Measurement
     {
         //Measurement variables
-        public static double Power1, Power2, Power1Avg, Power2Avg;
-        public static double Power1Sum, Power2Sum;
+        public static double Power1, Power2;
         public static double Wavelength;
-        public static bool BaseMeasCheck;
-        public static bool SampleMeasCheck;
 
         //Measurement setting variables
         public static int IntervalNum;
         public static double SleepTime;
-        public static int BaseCountMax, SampleCountMax;
+        public static int DataPointCount;
         public static int BaseCount, SampleCount;
         public static int TestCount;
         public static int IntervalSet;
@@ -27,11 +26,10 @@ namespace Power_Meter_Testing
         //Arrays that hold the power measurements
         //Need to be 1 larger than expected, as for loops start at 1
         //Easier to start at base 1, because of how Excel controls row & column naming
-        public static double[,] BaseArray = new double[BaseCountMax + 1, 4];
-        public static double[,] SampleArray = new double[SampleCountMax + 1, 4];
-        public static TimeSpan[] BaseTimes = new TimeSpan[BaseCountMax + 1];
-        public static TimeSpan[] imes = new TimeSpan[SampleCountMax + 1];
-        public static int BaseDataMax, SampleDataMax;
+        public static double[,] BaseArray = new double[DataPointCount + 1, 4];
+        public static double[,] SampleArray = new double[DataPointCount + 1, 4];
+        public static TimeSpan[] BaseTimes = new TimeSpan[DataPointCount + 1];
+        public static TimeSpan[] imes = new TimeSpan[DataPointCount + 1];
 
         //Target OD and tolerance variables:
         public static double TargetOD;
@@ -45,23 +43,29 @@ namespace Power_Meter_Testing
         public static double SampleExpectedPowerT1, ReferenceExpectedPowerT1;
         public static double SampleExpectedPowerT2, ReferenceExpectedPowerT2;
 
+        public static int TestNum;
+
+        public static double CalibratedOD;
+        public static double CalibratedRatio;
+        public static double AdjustedPower;
+
         public static void ExpectedPowerAdjust()
         {
             SampleMeterPowerScaleFactorT1 = 1.2 * SampleMeterMaxPowerScaleFactor;
             ReferenceMeterPowerScaleFactorT1 = 1.2 * ReferenceMeterMaxPowerScaleFactor;
-            SampleExpectedPowerT1 = SampleMeterPowerScaleFactorT1 * TestPower;
-            ReferenceExpectedPowerT1 = ReferenceMeterPowerScaleFactorT1 * TestPower;
+            SampleExpectedPowerT1 = SampleMeterPowerScaleFactorT1 * AdjustedPower;
+            ReferenceExpectedPowerT1 = ReferenceMeterPowerScaleFactorT1 * AdjustedPower;
 
             SampleMeterPowerScaleFactorT2 = (1 / Math.Pow(10, TargetOD)) * 1.2;
             ReferenceMeterPowerScaleFactorT2 = ReferenceMeterPowerScaleFactorT1;
-            SampleExpectedPowerT2 = SampleMeterPowerScaleFactorT2 * TestPower;
+            SampleExpectedPowerT2 = SampleMeterPowerScaleFactorT2 * AdjustedPower;
             ReferenceExpectedPowerT2 = ReferenceExpectedPowerT1;
 
             SensorControl.pm1.setPowerAutoRange(false);
             SensorControl.pm2.setPowerAutoRange(false);
         }
 
-        //Results variables
+        //Results variables, not currently in use
         public static double ResultOD, ResultPosUncert, ResultNegUncert;
 
         public static double[,] BaseMeasurement()
@@ -69,22 +73,23 @@ namespace Power_Meter_Testing
             //Baseline measurement procedure (no step averaging)
             SensorControl.pm1.setPowerRange(ReferenceExpectedPowerT1);
             SensorControl.pm2.setPowerRange(SampleExpectedPowerT1);
-            BaseDataMax = BaseCountMax;
-            double[,] BaseMeas = new double[BaseCountMax + 1, 4];
-            for (int i = 1; i <= BaseDataMax; i++)
+            double[,] BaseMeas = new double[DataPointCount + 1, 4];
+            for (TestNum = 1; TestNum <= DataPointCount; TestNum++)
             {
-                BaseCount = i;
-                BaseMeas[i, 0] = Convert.ToDouble(BaseCount);
+                BaseCount = TestNum;
+                BaseMeas[TestNum, 0] = Convert.ToDouble(BaseCount);
                 SensorControl.pm1.measPower(out Power1);
-                BaseMeas[i, 2] = Power1;
+                BaseMeas[TestNum, 2] = Power1;
                 SensorControl.pm2.measPower(out Power2);
-                BaseMeas[i, 3] = Power2;
-                BaseMeas[i, 1] = DateTime.Now.ToOADate();
+                BaseMeas[TestNum, 3] = Power2;
+                BaseMeas[TestNum, 1] = DateTime.Now.ToOADate();
                 if (SleepTime > 0)
                 {
                     Thread.Sleep(Convert.ToInt32(SleepTime));
                 }
+                //frmTester.MeasureThread.ReportProgress(TestNum);
             }
+            TestNum = 0;
             return BaseMeas;
         }
 
@@ -93,9 +98,8 @@ namespace Power_Meter_Testing
             //Sample measurement procedure (no step averaging)
             SensorControl.pm1.setPowerRange(ReferenceExpectedPowerT2);
             SensorControl.pm2.setPowerRange(SampleExpectedPowerT2);
-            SampleDataMax = SampleCountMax;
-            double[,] SampleMeas = new double[SampleCountMax + 1, 4];
-            for (int i = 1; i <= SampleDataMax; i++)
+            double[,] SampleMeas = new double[DataPointCount + 1, 4];
+            for (int i = 1; i <= DataPointCount; i++)
             {
                 SampleCount = i;
                 SampleMeas[i, 0] = Convert.ToDouble(SampleCount);
@@ -112,15 +116,21 @@ namespace Power_Meter_Testing
             return SampleMeas;
         }
 
+        //Check interval measurment logic. Currently divide datapointcount by itself to set actual datapoints.
+        //This works, but could be easier to have one variable that gets used by both sample and base measurements.
+        //Perhaps some sort of function to set the new variable depending on whether or not interval measurement is set.
+        
+        //Maybe delete interval measurement altogether? Is there really a purpose to this method of measurement.
+
         public static double[,] IntervalBaseMeasurement()
         {
             //Baseline measurement procedure using step averaging setting
             SensorControl.pm1.setPowerRange(ReferenceExpectedPowerT1);
             SensorControl.pm2.setPowerRange(SampleExpectedPowerT1);
-            BaseDataMax = BaseCountMax / IntervalNum;
-            double[,] IntBaseMeas = new double[BaseDataMax + 1, 4];
+            DataPointCount = DataPointCount / IntervalNum;
+            double[,] IntBaseMeas = new double[DataPointCount + 1, 4];
             double Sum1, Sum2, IntTestCount;
-            for (int i = 1; i <= BaseDataMax; i++)
+            for (int i = 1; i <= DataPointCount; i++)
             {
                 Sum1 = Sum2 = IntTestCount = 0;
                 BaseCount++;
@@ -149,10 +159,9 @@ namespace Power_Meter_Testing
             //Sample measurement procedure using step averaging procedure
             SensorControl.pm1.setPowerRange(ReferenceExpectedPowerT2);
             SensorControl.pm2.setPowerRange(SampleExpectedPowerT2);
-            SampleDataMax = SampleCountMax / IntervalNum;
-            double[,] IntSampMeas = new double[SampleDataMax + 1, 4];
+            double[,] IntSampMeas = new double[DataPointCount + 1, 4];
             double Sum1, Sum2, IntTestCount;
-            for (int i = 1; i <= SampleDataMax; i++)
+            for (int i = 1; i <= DataPointCount; i++)
             {
                 Sum1 = Sum2 = IntTestCount = 0;
                 SampleCount++;
@@ -183,16 +192,16 @@ namespace Power_Meter_Testing
             double[] BaseAvgs = new double[4];
             double BaseDenomDet1, BaseDenomDet2, BaseDenomRatio;
             BaseDenomDet1 = BaseDenomDet2 = BaseDenomRatio = 0;
-            for (int i = 1; i <= BaseDataMax; i++)
+            for (int i = 1; i <= DataPointCount; i++)
             {
                 BaseDenomDet1 += BaseArray[i, 2];
                 BaseDenomDet2 += BaseArray[i, 3];
                 BaseDenomRatio += BaseArray[i, 3] / BaseArray[i, 2];
             }
             //Multiplying by 1000 to convert to mW from W.
-            BaseAvgs[0] = BaseDenomDet1 / BaseCountMax * 1000;
-            BaseAvgs[1] = BaseDenomDet2 / BaseCountMax * 1000;
-            BaseAvgs[2] = BaseDenomRatio / BaseCountMax;
+            BaseAvgs[0] = BaseDenomDet1 / DataPointCount * 1000;
+            BaseAvgs[1] = BaseDenomDet2 / DataPointCount * 1000;
+            BaseAvgs[2] = BaseDenomRatio / DataPointCount;
             return BaseAvgs;
         }
 
@@ -201,7 +210,7 @@ namespace Power_Meter_Testing
             double[] SampleAvgs = new double[4];
             double SampleDenomDet1, SampleDenomDet2, SampleDenomRatio;
             SampleDenomDet1 = SampleDenomDet2 = SampleDenomRatio = 0;
-            for (int i = 1; i <= SampleDataMax; i++)
+            for (int i = 1; i <= DataPointCount; i++)
             {
                 SampleDenomDet1 += SampleArray[i, 2];
                 SampleDenomDet2 += SampleArray[i, 3];
@@ -209,11 +218,63 @@ namespace Power_Meter_Testing
             }
 
             //Multiplying by 1000 to convert to mW from W. Multiplying by 100 to get result in percent format.
-            SampleAvgs[0] = SampleDenomDet1 / SampleCountMax * 1000;
-            SampleAvgs[1] = SampleDenomDet2 / SampleCountMax * 1000;
-            SampleAvgs[2] = SampleDenomRatio / SampleCountMax;
+            SampleAvgs[0] = SampleDenomDet1 / DataPointCount * 1000;
+            SampleAvgs[1] = SampleDenomDet2 / DataPointCount * 1000;
+            SampleAvgs[2] = SampleDenomRatio / DataPointCount;
             SampleAvgs[3] = SampleAvgs[2] / frmTester.BaseResults[2] * 100;
             return SampleAvgs;
         }
+
+        public static int CalibrationRatioPrep()
+        {
+            //The logic of this is based off the type of beamsplitter used. I assumed it would 70(T):30(R) or higher transmission.
+            CalibratedRatio = Math.Pow(10, CalibratedOD);
+            double Transmission = 1 / CalibratedRatio;
+            AdjustedPower = Transmission * TestPower;
+            int Result;
+
+            if (TestPower < .005 && CalibratedOD > 0)
+            {
+                DialogResult CalConfirm = MessageBox.Show("You have entered an expected test power of below 5mW and have used a calibrating OD filter." +
+                    " This is unecessary when the test power is below 5mW. Would you like to cancel and remove the calibration filter? (Recommended)",
+                    "Calibration Filter Confirmation", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (CalConfirm == DialogResult.Yes)
+                {
+                    Result = 1;
+                    return Result;
+                }
+                else if(CalConfirm == DialogResult.No)
+                {
+                    Result = 0;
+                    return Result;
+                }
+            }
+            else if(AdjustedPower > .005)
+            {
+                MessageBox.Show("With the calibration OD entered, the expected power is still above 5mW. Please use a filter with a higher OD.");
+                Result = 0;
+                return Result;
+            }
+            else if(CalibratedOD >= 5)
+            {
+                DialogResult HighODConfirm = MessageBox.Show("You have entered a calibration optical density of 5 or greater." +
+                    " This will probably introduce inaccuracy into the measurement. It is recommended to use a lower optical density filter." +
+                    " If you wish to continue regardless, press yes. Press no to cancel and adjust.", "High OD Calibration Filter Confirmation",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if(HighODConfirm == DialogResult.Yes)
+                {
+                    Result = 1;
+                    return Result;
+                }
+                else if(HighODConfirm == DialogResult.No)
+                {
+                    Result = 0;
+                    return Result;
+                }
+            }
+                Result = 1;
+                return Result;
+        }
+
     }
 }

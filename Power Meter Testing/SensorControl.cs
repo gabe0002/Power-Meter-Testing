@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using Thorlabs.TLPM_32.Interop;
 
 namespace Power_Meter_Testing
@@ -23,9 +24,5 @@ namespace Power_Meter_Testing
             frmTester.PowerMeterOn = true;
         }
 
-        public static void SetCount()
-        {
-
-        }
     }
 }
